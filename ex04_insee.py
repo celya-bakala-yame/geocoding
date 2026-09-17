@@ -11,7 +11,6 @@ pop_data = pd.read_csv(
 
 dpt_code = pop_data["DEPCOM"]
 
-# Sélection des communes d’Île-de-France
 mask = (
     dpt_code.str.startswith("75")
     | dpt_code.str.startswith("77")
@@ -23,12 +22,11 @@ mask = (
     | dpt_code.str.startswith("95")
 )
 
-# Application du filtre
+
 pop_data = pop_data[mask]
 
 print("Nombre de lignes sélectionnées :", len(pop_data))
 
-# Création de la carte
 coords = (48.7190835, 2.4609723)
 
 carte = folium.Map(
@@ -37,7 +35,6 @@ carte = folium.Map(
     zoom_start=9
 )
 
-# Création de la carte choroplèthe
 folium.Choropleth(
     geo_data="idf.geojson",
     name="choropleth",

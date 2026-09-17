@@ -91,3 +91,141 @@ For open source projects, say how it is licensed.
 
 ## Project status
 If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+
+## Comparaison entre ma première implémentation et la correction assistée par IA
+
+J’ai d’abord réalisé les différentes étapes du projet à partir des exemples du cours : géocodage d’une adresse, création d’une carte Folium, affichage des températures, extraction des communes d’Île-de-France et création d’une carte choroplèthe.
+
+L’intelligence artificielle a ensuite été utilisée comme outil de correction et d’explication lorsque certaines erreurs apparaissaient.
+
+### 1. Gestion de l’environnement Python
+
+Dans ma première tentative, j’exécutais le programme avec :
+
+```bash
+python3 ex01_geocoding.py
+```
+
+Cette commande provoquait une erreur, car les bibliothèques installées avec `uv` n’étaient pas disponibles dans le Python global du Mac.
+
+La correction a consisté à utiliser l’environnement reproductible du projet :
+
+```bash
+uv run python ex01_geocoding.py
+```
+
+J’ai compris qu’un projet contenant un fichier `pyproject.toml` devait être exécuté avec `uv run` afin d’utiliser les bonnes versions de Python et des dépendances.
+
+### 2. Création de la carte météorologique
+
+Dans ma première version, j’avais créé plusieurs objets `Map` et utilisé différentes variables comme `map`, `map1` et `carte`. J’avais notamment écrit :
+
+```python
+map.add_child(cm)
+```
+
+Cela provoquait une erreur, car `map` faisait référence à la fonction intégrée de Python et non à ma carte Folium.
+
+La version corrigée utilise un seul objet :
+
+```python
+carte = folium.Map(
+    location=coords,
+    tiles="OpenStreetMap",
+    zoom_start=6
+)
+
+carte.add_child(cm)
+```
+
+Cette correction m’a permis de comprendre qu’il fallait créer une seule carte, lui ajouter les différents éléments, puis l’enregistrer à la fin.
+
+### 3. Exportation des données géographiques
+
+J’avais initialement utilisé :
+
+```python
+geojson.dump(idf, fichier)
+```
+
+Cette instruction produisait une erreur, car une `GeoDataFrame` contient des objets NumPy qui ne sont pas directement sérialisables par le module `geojson`.
+
+La correction proposée a été :
+
+```python
+idf.to_file(
+    "idf.geojson",
+    driver="GeoJSON",
+    index=False
+)
+```
+
+La méthode `to_file()` de GeoPandas est mieux adaptée à l’exportation d’une `GeoDataFrame`, car elle traite correctement les géométries et les types de données associés.
+
+### 4. Préparation des données de population
+
+Dans une première version, j’avais utilisé la variable `pop_data` avant de l’avoir créée, ce qui provoquait une erreur `NameError`.
+
+L’ordre correct est :
+
+```python
+pop_data = pd.read_csv(
+    "insee-pop-communes.csv",
+    sep=";",
+    dtype={"DEPCOM": str}
+)
+
+dpt_code = pop_data["DEPCOM"]
+```
+
+Le paramètre `dtype={"DEPCOM": str}` permet de conserver les codes INSEE sous forme de chaînes de caractères et d’éviter la suppression des zéros placés au début.
+
+### 5. Filtrage des communes d’Île-de-France
+
+Le masque booléen permet de déterminer si chaque commune appartient à l’un des départements franciliens :
+
+```python
+mask = (
+    dpt_code.str.startswith("75")
+    | dpt_code.str.startswith("77")
+    | dpt_code.str.startswith("78")
+    | dpt_code.str.startswith("91")
+    | dpt_code.str.startswith("92")
+    | dpt_code.str.startswith("93")
+    | dpt_code.str.startswith("94")
+    | dpt_code.str.startswith("95")
+)
+```
+
+Il doit ensuite être réellement appliqué :
+
+```python
+pop_data = pop_data[mask]
+```
+
+Ma première version construisait le masque, mais ne l’appliquait pas systématiquement aux données.
+
+### 6. Problème de correspondance pour Paris
+
+Paris apparaissait en noir sur la carte choroplèthe. Le problème ne venait pas de Folium, mais d’une différence entre les deux jeux de données :
+
+* le fichier GeoJSON représente Paris avec le code `75056` ;
+* le fichier INSEE représente séparément les 20 arrondissements avec les codes `75101` à `75120`.
+
+La correction consiste à additionner les populations des arrondissements et à créer une ligne unique pour le code `75056`.
+
+Cette étape m’a permis de comprendre qu’une jointure peut échouer même lorsque les deux fichiers parlent du même territoire, si leurs identifiants ou leur niveau de découpage géographique sont différents.
+
+### Conclusion
+
+L’IA n’a pas seulement fourni une version corrigée du code. Elle m’a principalement aidée à interpréter les messages d’erreur, à identifier les incohérences entre les jeux de données et à comprendre le rôle de chaque outil.
+
+Les principaux apprentissages sont :
+
+* utiliser `uv` pour isoler et reproduire l’environnement Python ;
+* différencier les données numériques, géographiques et cartographiques ;
+* conserver les codes INSEE sous forme de chaînes de caractères ;
+* appliquer correctement un masque Pandas ;
+* utiliser GeoPandas pour exporter des données géographiques ;
+* faire correspondre les jeux de données grâce à un identifiant commun ;
+* vérifier la compatibilité du découpage géographique avant de construire une carte choroplèthe.
